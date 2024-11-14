@@ -32,3 +32,7 @@
 
 - bootdump小工具
   - 提取引导启动相关的数据，例如mbr、vbr、bios固件
+
+### License
+
+[MIT](./LICENSE) © threatexpert.cn
