@@ -214,7 +214,7 @@
     <ClInclude Include="..\core\RangeMgr.h" />
     <ClInclude Include="..\core\SubProcess.h" />
     <ClInclude Include="..\core\Thread.h" />
-    <ClInclude Include="..\core\VBoxSimple.h" />
+    <ClInclude Include="..\core\VDiskWriter.h" />
     <ClInclude Include="..\core\VolumeReader.h" />
     <ClInclude Include="..\core\vssclient.h" />
     <ClInclude Include="..\core\vssProv.h" />
@@ -248,7 +248,7 @@
     <ClCompile Include="..\core\osutils.cpp" />
     <ClCompile Include="..\core\SubProcess.cpp" />
     <ClCompile Include="..\core\Thread.cpp" />
-    <ClCompile Include="..\core\VBoxSimple.cpp" />
+    <ClCompile Include="..\core\VDiskWriter.cpp" />
     <ClCompile Include="..\core\VolumeReader.cpp" />
     <ClCompile Include="..\core\vss2003Prov.cpp" />
     <ClCompile Include="..\core\vssclient.cpp" />

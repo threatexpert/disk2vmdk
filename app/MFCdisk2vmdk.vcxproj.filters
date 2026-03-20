@@ -90,9 +90,6 @@
     <ClInclude Include="..\core\vssProv.h">
       <Filter>头文件</Filter>
     </ClInclude>
-    <ClInclude Include="..\core\VBoxSimple.h">
-      <Filter>头文件</Filter>
-    </ClInclude>
     <ClInclude Include="GetPCInfo.h">
       <Filter>头文件</Filter>
     </ClInclude>
@@ -118,6 +115,9 @@
       <Filter>头文件</Filter>
     </ClInclude>
     <ClInclude Include="..\core\Buffer.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="..\core\VDiskWriter.h">
       <Filter>头文件</Filter>
     </ClInclude>
   </ItemGroup>
@@ -182,9 +182,6 @@
     <ClCompile Include="..\core\vssXPProv.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
-    <ClCompile Include="..\core\VBoxSimple.cpp">
-      <Filter>源文件</Filter>
-    </ClCompile>
     <ClCompile Include="GetPCInfo.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
@@ -210,6 +207,9 @@
       <Filter>源文件</Filter>
     </ClCompile>
     <ClCompile Include="..\core\Buffer.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="..\core\VDiskWriter.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
   </ItemGroup>

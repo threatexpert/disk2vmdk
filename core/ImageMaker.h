@@ -3,10 +3,9 @@
 #include "Thread.h"
 #include <string>
 #include "RangeMgr.h"
-#include "SubProcess.h"
 #include <list>
 #include "VolumeReader.h"
-#include "VBoxSimple.h"
+#include "VDiskWriter.h"
 #include "Cconnection.h"
 #include "Buffer.h"
 
@@ -20,26 +19,6 @@ public:
 	virtual void ImageMaker_OnRemoteConnLog(LPCWSTR lpszStatus) = 0;
 };
 
-
-class CProcVBoxM : public SubProcess
-{
-	std::string _output;
-public:
-
-	std::string get_output() {
-		CThread::Wait();
-		return _output;
-	}
-
-	size_t get_outputsize() {
-		return _output.size();
-	}
-
-	virtual void OnReadOutput(void* data, unsigned int len) {
-		_output.append((char*)data, len);
-	}
-
-};
 
 class CDiskReader
 {
@@ -73,20 +52,12 @@ class CImageMaker
 {
 public:
 	enum {
-		OptStandard	= 1,
-		OptFixed	= 2,
-		OptSplit2G	= 4
-	};
-
-	enum {
 		Mode_Unk = 0,
 		Mode_DD,
-		Mode_VD_Piped,
-		Mode_VD_Lib
+		Mode_VD
 	};
 
 protected:
-	std::wstring m_strVBoxManage;
 	std::wstring m_strSource;
 	uint64_t m_nSourceSize;
 	uint64_t m_nSourceDataSpaceSize;
@@ -95,15 +66,10 @@ protected:
 	uint64_t m_nDestTotalWritten;
 	uint64_t m_nDestDataWritten;
 	uint64_t m_nVDCapacity;
-	DWORD m_dwOptions;
-	BOOL m_bVBoxmUsed;
-	CProcVBoxM m_vboxm_proc;
-	BOOL m_vboxm_proc_Terminated;
 	DWORD m_convertor_exit_code;
 	IImageMakerCallback* m_pCB;
 
-	BOOL m_vbox_libmode;
-	CVBoxSimple m_vb_writer;
+	CVDiskWriter m_vd_writer;
 
 	CBuffers m_buffers_reader;
 	DWORD m_dwBufferSize;
@@ -121,8 +87,6 @@ public:
 	CImageMaker();
 	virtual ~CImageMaker();
 
-	BOOL setVBoxManage(LPCWSTR lpszApp);
-	BOOL setOptions(DWORD dwOptions);
 	BOOL setSource(LPCWSTR lpszSrc, uint64_t nSrcSize);
 	BOOL setSource(int diskno, uint64_t nSrcSize);
 	BOOL setRemoteSource(LPCWSTR lpszIP, int port, LPCWSTR lpszPasswd, int diskno, uint64_t nSrcSize);
@@ -140,7 +104,6 @@ public:
 	std::wstring lasterr() { return m_lasterr; };
 	DWORD getConvertorExitCode() { return m_convertor_exit_code; }
 	BOOL setDestReadOnly();
-	void EnableVBoxLibMode();
 	int GetWorkingMode() { return m_WorkingMode; }
 protected:
 	virtual DWORD run();

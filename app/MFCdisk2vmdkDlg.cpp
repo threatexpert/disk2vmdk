@@ -670,9 +670,6 @@ CMakerItem::~CMakerItem()
 
 bool CMakerItem::Start()
 {
-	if (m_pMainDlg->m_bDeveloperMode) {
-		m_maker.EnableVBoxLibMode();
-	}
 	m_jdisk = m_pMainDlg->m_cDiskList.m_jdisks.at(m_iItem);
 	json property = m_jdisk["property"];
 	json &partitions = m_jdisk["partitions"];
@@ -942,15 +939,7 @@ void CMakerItem::ImageMaker_OnCopied(uint64_t position, uint64_t disksize, uint6
 		uint64_t est_sec;
 
 		switch (m_maker.GetWorkingMode()) {
-		case CImageMaker::Mode_VD_Piped:
-			_percent = max((int)(data_copied * 100 / data_space_size), (int)(position * 100 / disksize));
-			if (_percent == 100 && position != disksize)
-				_percent -= 1;
-			inc = _position - position_prev;
-			speed = (double)inc * 1000 / t;
-			est_sec = (uint64_t)((disksize - position) / speed);
-			break;
-		case CImageMaker::Mode_VD_Lib:
+		case CImageMaker::Mode_VD:
 			_percent = (int)(data_copied * 100 / data_space_size);
 			if (_percent == 100 && position != disksize)
 				_percent -= 1;

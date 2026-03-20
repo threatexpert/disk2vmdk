@@ -22,8 +22,6 @@ foreach ($i in $dirs) {
    mkdir $i | Out-Null
 }
 
-Copy-Item "$scriptDir\vbox32" -Recurse -Destination "$releaseDir\disk2vmdk\"
-Copy-Item "$scriptDir\vbox64" -Recurse -Destination "$releaseDir\disk2vmdk\"
 Copy-Item "$scriptDir\build\Win32\Release\disk2vmdk.exe" -Destination "$releaseDir\disk2vmdk\" 
 Copy-Item "$scriptDir\build\x64\Release\disk2vmdk_x64.exe" -Destination "$releaseDir\disk2vmdk\" 
 Copy-Item "$scriptDir\build\Win32\Release\d2vagent.exe" -Destination "$releaseDir\disk2vmdk\" 
