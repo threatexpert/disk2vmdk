@@ -18,6 +18,7 @@
 #include <assert.h>
 #include <string.h>
 #include <stdio.h>
+#include <objbase.h>
 #include <atlstr.h>   // for CA2W if needed
 
 // ============================================================================
@@ -894,11 +895,12 @@ bool CVDiskWriter::vhd_Create(const char* dst_file, uint64_t cbCapacity)
     footer.sectorsPerTrack = spt;
     footer.diskType = bswap32(3); // Dynamic
 
-    // Generate a simple UUID from timestamp + capacity
-    uint64_t uid1 = GetTickCount64();
-    uint64_t uid2 = cbCapacity ^ 0xDEADBEEF12345678ULL;
-    memcpy(footer.uniqueId, &uid1, 8);
-    memcpy(footer.uniqueId + 8, &uid2, 8);
+    GUID uniqueId;
+    if (FAILED(CoCreateGuid(&uniqueId))) {
+        m_lasterr = L"CoCreateGuid failed";
+        return false;
+    }
+    memcpy(footer.uniqueId, &uniqueId, sizeof(footer.uniqueId));
 
     footer.savedState = 0;
 
@@ -1112,11 +1114,12 @@ bool CVDiskWriter::vdi_Create(const char* dst_file, uint64_t cbCapacity)
     hdr.cBlocks = m_vdi_totalBlocks;
     hdr.cBlocksAllocated = 0; // will be updated at Close
 
-    // Simple UUIDs
-    uint64_t uid = GetTickCount64();
-    memcpy(hdr.uuidCreate, &uid, 8);
-    uid ^= cbCapacity;
-    memcpy(hdr.uuidCreate + 8, &uid, 8);
+    GUID uuidCreate;
+    if (FAILED(CoCreateGuid(&uuidCreate))) {
+        m_lasterr = L"CoCreateGuid failed";
+        return false;
+    }
+    memcpy(hdr.uuidCreate, &uuidCreate, sizeof(hdr.uuidCreate));
     memcpy(hdr.uuidModify, hdr.uuidCreate, 16);
 
     m_cbFilePos = 0;

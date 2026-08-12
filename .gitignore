@@ -32,3 +32,4 @@ resource.aps
 Release/
 Debug/
 bin/obj/
+Release-*/
