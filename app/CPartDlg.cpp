@@ -202,17 +202,6 @@ void CPartDlg::UpdateList()
         m_cPartList.GetTopIndex() + m_cPartList.GetCountPerPage());
 }
 
-bool IsEnglishOnly(LPCTSTR str, size_t length) {
-    for (size_t i = 0; i < length; ++i) {
-        TCHAR ch = str[i];
-        if (ch < 0 || ch > 127 || !isprint(ch)) { // Check for non-ASCII or non-printable characters
-            return false;
-        }
-    }
-    return true;
-}
-
-
 void CPartDlg::OnBnClickedButtonSelpath()
 {
     CFileDialog dlg(FALSE, _T("*.vmdk"), NULL, OFN_OVERWRITEPROMPT|OFN_EXPLORER);
@@ -226,7 +215,6 @@ void CPartDlg::OnBnClickedButtonSelpath()
 
     if (dlg.DoModal() == IDOK)
     {
-        CString strMsg;
         CString strPath = dlg.GetPathName();
         BOOL bExist = PathFileExists(strPath);
         if (bExist) {
@@ -249,13 +237,6 @@ void CPartDlg::OnBnClickedButtonSelpath()
             return;
         }
 
-        LPCTSTR name = PathFindFileName(strPath);
-        if (!IsEnglishOnly(name, _tcslen(name))) {
-            strMsg.Format(LSTRW(RID_NotAllowedChar), name);
-            MessageBox(strMsg, LSTRW(RID_TIPS), MB_ICONERROR);
-            return;
-        }
-
         m_SaveTo.SetWindowTextW(strPath);
 
         json& disk = m_pjdisks->at(m_diskno);
@@ -269,7 +250,7 @@ void CPartDlg::OnBnClickedOk()
 {
     json& disk = m_pjdisks->at(m_diskno);
 
-    CString strPath, strMsg;
+    CString strPath;
     m_SaveTo.GetWindowText(strPath);
     if (strPath.Right(5).CompareNoCase(_T(".vmdk"))
         && strPath.Right(3).CompareNoCase(_T(".dd"))
@@ -280,14 +261,6 @@ void CPartDlg::OnBnClickedOk()
         m_SaveTo.SetFocus();
         return;
     }
-    LPCTSTR name = PathFindFileName(strPath);
-    if (!IsEnglishOnly(name, _tcslen(name))) {
-        strMsg.Format(LSTRW(RID_NotAllowedChar), name);
-        MessageBox(strMsg, LSTRW(RID_TIPS), MB_ICONERROR);
-        m_SaveTo.SetFocus();
-        return;
-    }
-
     disk["__saveto"] = (LPCSTR)CW2A((LPCWSTR)strPath, CP_UTF8);
 
     std::vector<int> __exclude;

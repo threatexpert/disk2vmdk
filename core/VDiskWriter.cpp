@@ -19,7 +19,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <objbase.h>
-#include <atlstr.h>   // for CA2W if needed
+#include <wchar.h>
 
 // ============================================================================
 //  Helper: check if buffer is all zeros (SIMD-friendly for compiler)
@@ -130,7 +130,7 @@ bool CVDiskWriter::FilePad(uint64_t targetPos)
 //  Public API: CreateImage
 // ============================================================================
 
-bool CVDiskWriter::CreateImage(const char* format, const char* dst_file, uint64_t cbCapacity)
+bool CVDiskWriter::CreateImage(const char* format, const wchar_t* dst_file, uint64_t cbCapacity)
 {
     if (!_stricmp(format, "VMDK"))     m_fmt = FMT_VMDK;
     else if (!_stricmp(format, "VHD")) m_fmt = FMT_VHD;
@@ -475,10 +475,28 @@ typedef struct {
 } VMDK_SparseExtentHeader;
 #pragma pack(pop)
 
-bool CVDiskWriter::vmdk_Create(const char* dst_file, uint64_t cbCapacity)
+bool CVDiskWriter::vmdk_Create(const wchar_t* dst_file, uint64_t cbCapacity)
 {
+    // The filesystem path stays UTF-16. Only the descriptor's relative
+    // extent filename is UTF-8, matching its top-level encoding declaration.
+    const wchar_t* pName = wcsrchr(dst_file, L'\\');
+    const wchar_t* pSlash = wcsrchr(dst_file, L'/');
+    if (pSlash && (!pName || pSlash > pName)) pName = pSlash;
+    pName = pName ? pName + 1 : dst_file;
+    int nameBytes = WideCharToMultiByte(CP_UTF8, 0, pName, -1, NULL, 0, NULL, NULL);
+    if (nameBytes <= 0) {
+        m_lasterr = L"Cannot encode VMDK extent filename as UTF-8";
+        return false;
+    }
+    std::string extentName(nameBytes, '\0');
+    if (!WideCharToMultiByte(CP_UTF8, 0, pName, -1, &extentName[0], nameBytes, NULL, NULL)) {
+        m_lasterr = L"Cannot encode VMDK extent filename as UTF-8";
+        return false;
+    }
+    extentName.resize(nameBytes - 1);
+
     // Open output file
-    m_hFile = CreateFileA(dst_file,
+    m_hFile = CreateFileW(dst_file,
         GENERIC_READ | GENERIC_WRITE,
         FILE_SHARE_READ, NULL,
         CREATE_NEW,
@@ -588,11 +606,6 @@ bool CVDiskWriter::vmdk_Create(const char* dst_file, uint64_t cbCapacity)
     uint32_t cyl = (uint32_t)min(capacitySectors / (16 * 63), (uint64_t)16383);
     if (cyl == 0) cyl = 1;
 
-    // Extract just filename from path for extent description
-    const char* pName = strrchr(dst_file, '\\');
-    if (!pName) pName = strrchr(dst_file, '/');
-    if (pName) pName++; else pName = dst_file;
-
     // Generate random CID and UUID
     LARGE_INTEGER pc;
     QueryPerformanceCounter(&pc);
@@ -608,6 +621,7 @@ bool CVDiskWriter::vmdk_Create(const char* dst_file, uint64_t cbCapacity)
     int descLen = sprintf_s(desc, sizeof(desc),
         "# Disk DescriptorFile\n"
         "version=1\n"
+        "encoding=\"UTF-8\"\n"
         "CID=%08x\n"
         "parentCID=ffffffff\n"
         "createType=\"monolithicSparse\"\n"
@@ -619,7 +633,6 @@ bool CVDiskWriter::vmdk_Create(const char* dst_file, uint64_t cbCapacity)
         "#DDB\n"
         "\n"
         "ddb.adapterType = \"ide\"\n"
-        "ddb.encoding = \"GBK\"\n"
         "ddb.geometry.cylinders = \"%u\"\n"
         "ddb.geometry.heads = \"16\"\n"
         "ddb.geometry.sectors = \"63\"\n"
@@ -631,7 +644,7 @@ bool CVDiskWriter::vmdk_Create(const char* dst_file, uint64_t cbCapacity)
         "ddb.comment = \"disk2vmdk\"\n",
         cid,
         (unsigned long long)capacitySectors,
-        pName,
+        extentName.c_str(),
         cyl,
         u1, u2, u3, u4, u5a, u5b);
 
@@ -832,9 +845,9 @@ static void vhd_CalcGeometry(uint64_t totalSectors, uint16_t* cyl, uint8_t* head
     if (*cyl > 65535) *cyl = 65535;
 }
 
-bool CVDiskWriter::vhd_Create(const char* dst_file, uint64_t cbCapacity)
+bool CVDiskWriter::vhd_Create(const wchar_t* dst_file, uint64_t cbCapacity)
 {
-    m_hFile = CreateFileA(dst_file,
+    m_hFile = CreateFileW(dst_file,
         GENERIC_READ | GENERIC_WRITE,
         FILE_SHARE_READ, NULL,
         CREATE_NEW,
@@ -1038,9 +1051,9 @@ typedef struct {
 } VDI_Header;
 #pragma pack(pop)
 
-bool CVDiskWriter::vdi_Create(const char* dst_file, uint64_t cbCapacity)
+bool CVDiskWriter::vdi_Create(const wchar_t* dst_file, uint64_t cbCapacity)
 {
-    m_hFile = CreateFileA(dst_file,
+    m_hFile = CreateFileW(dst_file,
         GENERIC_READ | GENERIC_WRITE,
         FILE_SHARE_READ, NULL,
         CREATE_NEW,

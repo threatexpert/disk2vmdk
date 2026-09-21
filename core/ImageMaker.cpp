@@ -270,7 +270,7 @@ DWORD CImageMaker::run()
     else if (m_WorkingMode == Mode_VD) {
         if (m_pCB)
             m_pCB->ImageMaker_BeforeStart(LSTRW(RID_MakingImage));
-        if (!m_vd_writer.CreateImage(CW2A(m_format.c_str(), CP_UTF8), CW2A(m_strDest.c_str(), CP_UTF8), m_nVDCapacity)) {
+        if (!m_vd_writer.CreateImage(CW2A(m_format.c_str(), CP_UTF8), m_strDest.c_str(), m_nVDCapacity)) {
             m_lasterr = L"CreateImage Error: ";
             m_lasterr += m_vd_writer.lasterr();
             goto _END;

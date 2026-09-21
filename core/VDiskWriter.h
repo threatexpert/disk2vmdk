@@ -8,7 +8,7 @@
 // CVBoxSimple replacement ¡ª high-performance sequential virtual disk writer
 // Supports: VMDK (monolithicSparse), VHD (Dynamic), VDI (Dynamic)
 // 
-// Drop-in interface compatible with CVBoxSimple:
+// Sequential writer API (Windows file paths are UTF-16):
 //   CreateImage(format, dst_file, capacity)
 //   Write(offset, data, size)      ¡ª write data at logical disk offset
 //   WriteZero(offset, size)        ¡ª mark range as zero (sparse, not written to file)
@@ -27,9 +27,9 @@ public:
     virtual ~CVDiskWriter();
 
     // format: "VMDK", "VHD", or "VDI"  (case-insensitive)
-    // dst_file: output file path (UTF-8)
+    // dst_file: output file path (UTF-16, passed to CreateFileW)
     // cbCapacity: virtual disk size in bytes
-    bool CreateImage(const char* format, const char* dst_file, uint64_t cbCapacity);
+    bool CreateImage(const char* format, const wchar_t* dst_file, uint64_t cbCapacity);
 
     // Write data at virtual disk offset.  Must be called in strictly
     // ascending offset order (sequential image creation).
@@ -82,7 +82,7 @@ private:
     uint64_t  m_vmdk_dataSectorOffset; // sector offset where grain data starts
     uint64_t  m_vmdk_nextGrainFileSector; // next sector to write a grain at
 
-    bool vmdk_Create(const char* dst_file, uint64_t cbCapacity);
+    bool vmdk_Create(const wchar_t* dst_file, uint64_t cbCapacity);
     bool vmdk_FlushWriteBuf();          // flush accumulated grains to file in one IO
     bool vmdk_Close();
 
@@ -118,7 +118,7 @@ private:
     uint32_t  m_vhd_blockBufUsed;
     uint32_t  m_vhd_curBlock;
 
-    bool vhd_Create(const char* dst_file, uint64_t cbCapacity);
+    bool vhd_Create(const wchar_t* dst_file, uint64_t cbCapacity);
     bool vhd_WriteBlock(uint32_t blockIndex, const void* data, uint32_t len);
     bool vhd_Close();
     static uint32_t vhd_Checksum(const uint8_t* buf, uint32_t len);
@@ -143,7 +143,7 @@ private:
     uint32_t  m_vdi_blockBufUsed;
     uint32_t  m_vdi_curBlock;
 
-    bool vdi_Create(const char* dst_file, uint64_t cbCapacity);
+    bool vdi_Create(const wchar_t* dst_file, uint64_t cbCapacity);
     bool vdi_WriteBlock(uint32_t blockIndex, const void* data, uint32_t len);
     bool vdi_Close();
 };
