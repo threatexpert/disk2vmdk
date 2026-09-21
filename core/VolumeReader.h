@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include <string>
 
@@ -8,6 +8,7 @@ class CVolumeReader
 	uint64_t m_Size;
 	uint64_t m_pos;
 	std::wstring m_strVolName;
+	std::wstring m_strOrigVolName; // GetDiskFreeSpaceW only; never use for file LCNs.
 	DWORD m_dwOptions;
 	BOOL m_bOpenLater;
 

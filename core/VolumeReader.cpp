@@ -1,4 +1,4 @@
-#include "pch.h"
+ï»¿#include "pch.h"
 #include "VolumeReader.h"
 #include <winioctl.h>
 #include <assert.h>
@@ -47,6 +47,9 @@ BOOL CVolumeReader::setOptions(DWORD dwOptions)
 
 BOOL CVolumeReader::setSource(LPCWSTR lpszSrc, uint64_t nSrcSize, BOOL openLater)
 {
+    if (m_strOrigVolName.empty() && lpszSrc) {
+        m_strOrigVolName = lpszSrc;
+    }
     m_strVolName = lpszSrc;
     m_Size = nSrcSize;
 
@@ -82,18 +85,18 @@ BOOL CVolumeReader::openSource()
         FILE_ATTRIBUTE_NORMAL,
         NULL);
     if (m_hVol == INVALID_HANDLE_VALUE) {
-        m_lasterr = L"Failed to open volume£¬";
+        m_lasterr = L"Failed to open volume: ";
         m_lasterr += GetLastErrorAsString();
         return FALSE;
     }
 
-    if (m_dwOptions & OptOnlyUsedSpace) {  //Ö»¿½±´ÓĞÔÚÊ¹ÓÃµÄ´ÅÅÌ¿Õ¼ä
-        //»ñÈ¡´ÅÅÌµÄBitmap£¬BitmapÊÇÒÔclusterÎªµ¥Î»ÃèÊöÒ»¿é´ÅÅÌ¿Õ¼äÊÇ·ñÓĞ±»Ê¹ÓÃ¡£ÓÃÒ»¸öÎ»µÄ1»ò0ÃèÊöÊÇ·ñ±»Ê¹ÓÃ¡£
-        //Ò»¸öclusterµÄ´óĞ¡Í¨³£ÊÇ¸ñÊ½»¯Ê±µÄ¡°·ÖÅäµ¥Ôª´óĞ¡¡±¾ö¶¨µÄ¡£ËùÒÔÒ»¸ö×Ö½Ú¿ÉÒÔÃèÊö8¸öclusterµ¥ÔªµÄ´ÅÅÌ¿Õ¼äµÄÊ¹ÓÃ×´Ì¬¡£
+    if (m_dwOptions & OptOnlyUsedSpace) {  //åªæ‹·è´æœ‰åœ¨ä½¿ç”¨çš„ç£ç›˜ç©ºé—´
+        //è·å–ç£ç›˜çš„Bitmapï¼ŒBitmapæ˜¯ä»¥clusterä¸ºå•ä½æè¿°ä¸€å—ç£ç›˜ç©ºé—´æ˜¯å¦æœ‰è¢«ä½¿ç”¨ã€‚ç”¨ä¸€ä¸ªä½çš„1æˆ–0æè¿°æ˜¯å¦è¢«ä½¿ç”¨ã€‚
+        //ä¸€ä¸ªclusterçš„å¤§å°é€šå¸¸æ˜¯æ ¼å¼åŒ–æ—¶çš„â€œåˆ†é…å•å…ƒå¤§å°â€å†³å®šçš„ã€‚æ‰€ä»¥ä¸€ä¸ªå­—èŠ‚å¯ä»¥æè¿°8ä¸ªclusterå•å…ƒçš„ç£ç›˜ç©ºé—´çš„ä½¿ç”¨çŠ¶æ€ã€‚
         if (GetBitmap()) {
-            //BitmapµÄµÚÒ»×Ö½Ú×îµÍÎ»ÃèÊöµÚ0¸öclusterµÄ×´Ì¬£¬È»ºó°´Ë³ĞòÈ¥·ÖÎöËùÓĞcluster×´Ì¬
-            //µÚ0¸öclusterµÄÆ«ÒÆÔÚNTFSÏÂ¾ÍÊÇ·ÖÇøÆğÊ¼Î»ÖÃ£¬ÕâÑù°´clusterµ¥Ôª´óĞ¡¿ÉÖ±½ÓËã³öÃ¿¸öclusterÔÚ·ÖÇøµÄ¾ø¶ÔÂß¼­Æ«ÒÆ£¬
-            //¶øFATµÄÊ×¸öcluster²»ÊÇÔÚ·ÖÇøÆğÊ¼Î»ÖÃ£¬ĞèÒª´Ó·ÖÇøµÄÆğÊ¼512¸ö×Ö½ÚµÄÄÚÈİ£¨BootSector£©È¥·ÖÎöÊ×¸öclusterµÄÆ«ÒÆ¡£
+            //Bitmapçš„ç¬¬ä¸€å­—èŠ‚æœ€ä½ä½æè¿°ç¬¬0ä¸ªclusterçš„çŠ¶æ€ï¼Œç„¶åæŒ‰é¡ºåºå»åˆ†ææ‰€æœ‰clusterçŠ¶æ€
+            //ç¬¬0ä¸ªclusterçš„åç§»åœ¨NTFSä¸‹å°±æ˜¯åˆ†åŒºèµ·å§‹ä½ç½®ï¼Œè¿™æ ·æŒ‰clusterå•å…ƒå¤§å°å¯ç›´æ¥ç®—å‡ºæ¯ä¸ªclusteråœ¨åˆ†åŒºçš„ç»å¯¹é€»è¾‘åç§»ï¼Œ
+            //è€ŒFATçš„é¦–ä¸ªclusterä¸æ˜¯åœ¨åˆ†åŒºèµ·å§‹ä½ç½®ï¼Œéœ€è¦ä»åˆ†åŒºçš„èµ·å§‹512ä¸ªå­—èŠ‚çš„å†…å®¹ï¼ˆBootSectorï¼‰å»åˆ†æé¦–ä¸ªclusterçš„åç§»ã€‚
             if (GetFStype(_FSType)) {
                 if (_FSType == FILESYSTEM_STATISTICS_TYPE_FAT) {
                     if (ReadBootSector()) {
@@ -117,7 +120,7 @@ BOOL CVolumeReader::openSource()
                 }
             }
         }
-        //Èç¹û»ñÈ¡BitmapÊ§°Ü£¬¾ÍÎŞ·¨ÊµÏÖÖ»¿½±´ÓĞÔÚÊ¹ÓÃµÄ´ÅÅÌ¿Õ¼ä¡£µ«ÊÇº¯Êı»¹ÊÇ·µ»ØTRUE£¬Ä¬ÈÏ½«¿½±´·ÖÇøµÄÈ«²¿¿Õ¼ä¡£
+        //å¦‚æœè·å–Bitmapå¤±è´¥ï¼Œå°±æ— æ³•å®ç°åªæ‹·è´æœ‰åœ¨ä½¿ç”¨çš„ç£ç›˜ç©ºé—´ã€‚ä½†æ˜¯å‡½æ•°è¿˜æ˜¯è¿”å›TRUEï¼Œé»˜è®¤å°†æ‹·è´åˆ†åŒºçš„å…¨éƒ¨ç©ºé—´ã€‚
     }
 
     return TRUE;
@@ -150,7 +153,7 @@ BOOL CVolumeReader::Read(void* lpBuffer, DWORD nNumberOfBytesToRead, uint64_t* l
     *lpNumberOfBytesRead = 0;
     *pIsFreeSpace = FALSE;
     if (!_OnlyUsedSpace) {
-        //ÍêÕû¿½±´Ä£Ê½
+        //å®Œæ•´æ‹·è´æ¨¡å¼
         bRes = my_ReadFile(m_hVol, lpBuffer, nNumberOfBytesToRead, &dwReadBytes, m_pos, _BytesPerSector);
         if (bRes) {
             m_pos += dwReadBytes;
@@ -159,13 +162,13 @@ BOOL CVolumeReader::Read(void* lpBuffer, DWORD nNumberOfBytesToRead, uint64_t* l
         return bRes;
     }
     else {
-        //Ö»¿½±´ÕıÊ¹ÓÃµÄ´ÅÅÌ¿Õ¼ä
+        //åªæ‹·è´æ­£ä½¿ç”¨çš„ç£ç›˜ç©ºé—´
         uint64_t left;
         if (m_pos == m_Size) {
             return TRUE;
         }
         if (m_pos < m_1stClusterOffset) {
-            //fat·ÖÇøµÄclusterÓĞÆ«ÒÆµÄÇé¿ö£¬Ê×¸öclusterÇ°ÃæµÄ¿Õ¼äÈ«²¿Òª¿½±´
+            //fatåˆ†åŒºçš„clusteræœ‰åç§»çš„æƒ…å†µï¼Œé¦–ä¸ªclusterå‰é¢çš„ç©ºé—´å…¨éƒ¨è¦æ‹·è´
             left = m_1stClusterOffset - m_pos;
             nNumberOfBytesToRead = (DWORD)min(left, nNumberOfBytesToRead);
             bRes = my_ReadFile(m_hVol, lpBuffer, nNumberOfBytesToRead, &dwReadBytes, m_pos, _BytesPerSector);
@@ -176,15 +179,15 @@ BOOL CVolumeReader::Read(void* lpBuffer, DWORD nNumberOfBytesToRead, uint64_t* l
             return bRes;
         }
         else {
-            //GetContiguous¸ù¾İbitmapĞÅÏ¢£¬½«¿ÕÏĞ¿Õ¼äºÍÒÑÊ¹ÓÃ¿Õ¼äµÄÇø¼ä°´clusterµ¥Î»È¡³öÀ´
+            //GetContiguousæ ¹æ®bitmapä¿¡æ¯ï¼Œå°†ç©ºé—²ç©ºé—´å’Œå·²ä½¿ç”¨ç©ºé—´çš„åŒºé—´æŒ‰clusterå•ä½å–å‡ºæ¥
             bool stat;
             int64_t offset_i, offset_j;
-            int64_t lcn = (m_pos - m_1stClusterOffset) / _ClusterUnitSize;  //¼ÆËãµ±Ç°posÖ¸ÕëÖ¸ÏòµÄcluster
-            int64_t clusters = GetContiguous(lcn, stat);    //²éÑ¯´Ólcn¿ªÊ¼Á¬ĞøÏàÍ¬×´Ì¬µÄclusterµÄÊıÁ¿£¬ stat==trueÊ±±íÊ¾Ïà¹Øcluster¶¼ÊÇÕıÊ¹ÓÃµÄ¿Õ¼ä£¬·ñÔò¾ÍÊÇ¿ÕÏĞµÄ¿Õ¼ä¡£
+            int64_t lcn = (m_pos - m_1stClusterOffset) / _ClusterUnitSize;  //è®¡ç®—å½“å‰posæŒ‡é’ˆæŒ‡å‘çš„cluster
+            int64_t clusters = GetContiguous(lcn, stat);    //æŸ¥è¯¢ä»lcnå¼€å§‹è¿ç»­ç›¸åŒçŠ¶æ€çš„clusterçš„æ•°é‡ï¼Œ stat==trueæ—¶è¡¨ç¤ºç›¸å…³clusteréƒ½æ˜¯æ­£ä½¿ç”¨çš„ç©ºé—´ï¼Œå¦åˆ™å°±æ˜¯ç©ºé—²çš„ç©ºé—´ã€‚
             if (!clusters) {
                 left = m_Size - m_pos;
                 if (left) {
-                 //ËùÓĞCluster¶¼¶ÁÈ¡ÍêÁË£¬Èç¹û»¹ÓĞÊ£ÏÂ¿Õ¼ä£¬³¢ÊÔ¶ÁÈ¡¡££¨Êµ¼Ê²âÊÔ·¢ÏÖReadFile´Óm_hVol¶ÁÈ¡²»ÁË£¬Õâ²¿·ÖµÄ¿Õ¼äÒ²ĞíÖ»ÄÜÔÚPhysicalDrive²ãÃæ¶ÁÈ¡£©
+                 //æ‰€æœ‰Clusteréƒ½è¯»å–å®Œäº†ï¼Œå¦‚æœè¿˜æœ‰å‰©ä¸‹ç©ºé—´ï¼Œå°è¯•è¯»å–ã€‚ï¼ˆå®é™…æµ‹è¯•å‘ç°ReadFileä»m_hVolè¯»å–ä¸äº†ï¼Œè¿™éƒ¨åˆ†çš„ç©ºé—´ä¹Ÿè®¸åªèƒ½åœ¨PhysicalDriveå±‚é¢è¯»å–ï¼‰
                     nNumberOfBytesToRead = (DWORD)min(left, nNumberOfBytesToRead);
                     bRes = my_ReadFile(m_hVol, lpBuffer, nNumberOfBytesToRead, &dwReadBytes, m_pos, _BytesPerSector);
                     if (bRes) {
@@ -196,11 +199,11 @@ BOOL CVolumeReader::Read(void* lpBuffer, DWORD nNumberOfBytesToRead, uint64_t* l
                 assert(false);
                 return FALSE;
             }
-            offset_i = m_1stClusterOffset + lcn * _ClusterUnitSize; //lcn£¨logic cluster NO.£©×ª»»ÎªÔÚ·ÖÇøÖĞ°´×Ö½ÚµÄÆ«ÒÆÁ¿
+            offset_i = m_1stClusterOffset + lcn * _ClusterUnitSize; //lcnï¼ˆlogic cluster NO.ï¼‰è½¬æ¢ä¸ºåœ¨åˆ†åŒºä¸­æŒ‰å­—èŠ‚çš„åç§»é‡
             offset_j = offset_i + clusters * _ClusterUnitSize;
-            left = offset_j - m_pos;    //°´×Ö½Ú¼ÆËãÉĞÎ´¶ÁÈ¡µÄÏà¹ØclusterµÄ³¤¶È
+            left = offset_j - m_pos;    //æŒ‰å­—èŠ‚è®¡ç®—å°šæœªè¯»å–çš„ç›¸å…³clusterçš„é•¿åº¦
             if (stat) {
-                //¿½±´´ÅÅÌÕıÊ¹ÓÃµÄ¿Õ¼ä
+                //æ‹·è´ç£ç›˜æ­£ä½¿ç”¨çš„ç©ºé—´
                 nNumberOfBytesToRead = (DWORD)min(left, nNumberOfBytesToRead);
                 bRes = my_ReadFile(m_hVol, lpBuffer, nNumberOfBytesToRead, &dwReadBytes, m_pos, _BytesPerSector);
                 if (bRes) {
@@ -210,16 +213,16 @@ BOOL CVolumeReader::Read(void* lpBuffer, DWORD nNumberOfBytesToRead, uint64_t* l
                 return bRes;
             }
             else {
-                //·µ»Ø¿ÕÏĞ¿Õ¼äµÄ³¤¶È
+                //è¿”å›ç©ºé—²ç©ºé—´çš„é•¿åº¦
                 *pIsFreeSpace = TRUE;
                 *lpNumberOfBytesRead = left;
                 nNumberOfBytesToRead = (DWORD)min(left, nNumberOfBytesToRead);
-                //¿ÕÏĞ¿Õ¼äµÄÊı¾İ²»´Ó´ÅÅÌ¶ÁÈ¡£¬Ö±½Ó»º³åÇøÌî0ºóÊä³ö£¬ÕâÑù×ª»»ÎªvmdkÊ±¿ÉÒÔºÜºÃ±»Ñ¹Ëõ¡£
+                //ç©ºé—²ç©ºé—´çš„æ•°æ®ä¸ä»ç£ç›˜è¯»å–ï¼Œç›´æ¥ç¼“å†²åŒºå¡«0åè¾“å‡ºï¼Œè¿™æ ·è½¬æ¢ä¸ºvmdkæ—¶å¯ä»¥å¾ˆå¥½è¢«å‹ç¼©ã€‚
                 memset(lpBuffer, 0, nNumberOfBytesToRead);
                 m_pos += left;
                 if (m_pos < m_Size) {
                     LARGE_INTEGER liPos, liNewPos;
-                    liPos.QuadPart = left;  //µ÷ÕûÖ¸ÕëÎ»ÖÃ£¬Ìø¹ı¿ÕÏĞ¿Õ¼äµÄ³¤¶È
+                    liPos.QuadPart = left;  //è°ƒæ•´æŒ‡é’ˆä½ç½®ï¼Œè·³è¿‡ç©ºé—²ç©ºé—´çš„é•¿åº¦
                     if (!SetFilePointerEx(m_hVol, liPos, &liNewPos, FILE_CURRENT)) {
                         return FALSE;
                     }
@@ -248,12 +251,12 @@ void CVolumeReader::SetSnapshotTime()
     GetSystemTimeAsFileTime(&m_ft_beforeSnapshot);
 }
 
-//¼ÆËãÊµ¼ÊĞèÒª´Ó´ÅÅÌ¶ÁÈ¡µÄÁ¿
+//è®¡ç®—å®é™…éœ€è¦ä»ç£ç›˜è¯»å–çš„é‡
 BOOL CVolumeReader::CalcDataSize(uint64_t* pSize)
 {
     if (!_OnlyUsedSpace)
     {
-        //È«¿Õ¼äÄ£Ê½²»ÓÃ¼ÆËã
+        //å…¨ç©ºé—´æ¨¡å¼ä¸ç”¨è®¡ç®—
         *pSize = m_Size;
         return TRUE;
     }
@@ -293,25 +296,37 @@ BOOL CVolumeReader::GetBitmap()
     BOOL bResult;
     STARTING_LCN_INPUT_BUFFER stStartLCN;
     DWORD dwBitMapSize;
-    std::wstring volName;
-    volName = m_strVolName;
-    if (volName.size() && *volName.rbegin() != '\\') {
-        volName += L"\\";
+    std::wstring volPathForSpace;
+    if (!m_strOrigVolName.empty()) {
+        volPathForSpace = m_strOrigVolName;
+    } else {
+        volPathForSpace = m_strVolName;
+    }
+    if (volPathForSpace.size() && *volPathForSpace.rbegin() != '\\') {
+        volPathForSpace += L"\\";
     }
 
     bResult = FALSE;
-    if (!GetDiskFreeSpaceW(volName.c_str(), &_SectorsPerCluster, &_BytesPerSector, &_NumberOfFreeClusters, &_TotalNumberOfCluster)) {
-        return FALSE;
+    if (!GetDiskFreeSpaceW(volPathForSpace.c_str(), &_SectorsPerCluster, &_BytesPerSector, &_NumberOfFreeClusters, &_TotalNumberOfCluster)) {
+        if (volPathForSpace != m_strVolName) {
+            std::wstring alt = m_strVolName;
+            if (alt.size() && *alt.rbegin() != '\\') alt += L"\\";
+            if (!GetDiskFreeSpaceW(alt.c_str(), &_SectorsPerCluster, &_BytesPerSector, &_NumberOfFreeClusters, &_TotalNumberOfCluster)) {
+                return FALSE;
+            }
+        } else {
+            return FALSE;
+        }
     }
-    //Ò»¸öclusterÓÉN¸ösector£¨ÉÈÇø£©×é³É¡£Í¨³£Ã¿¸ösector×ÜÊÇ512×Ö½Ú
+    //ä¸€ä¸ªclusterç”±Nä¸ªsectorï¼ˆæ‰‡åŒºï¼‰ç»„æˆã€‚é€šå¸¸æ¯ä¸ªsectoræ€»æ˜¯512å­—èŠ‚
     _ClusterUnitSize = _SectorsPerCluster * _BytesPerSector;
-    //¸ù¾İGetDiskFreeSpaceWµÃµ½µÄ´ÅÅÌ×ÜµÄcluster£¬ÒÔ´ËÀ´¼ÆËã´ÅÅÌµÄÓĞĞ§¿Õ¼ä£¬ÓĞĞ§¿Õ¼ä¿ÉÄÜ»á±È·ÖÅä·ÖÇøµÄ´óĞ¡ÂÔĞ¡¡£
+    //æ ¹æ®GetDiskFreeSpaceWå¾—åˆ°çš„ç£ç›˜æ€»çš„clusterï¼Œä»¥æ­¤æ¥è®¡ç®—ç£ç›˜çš„æœ‰æ•ˆç©ºé—´ï¼Œæœ‰æ•ˆç©ºé—´å¯èƒ½ä¼šæ¯”åˆ†é…åˆ†åŒºçš„å¤§å°ç•¥å°ã€‚
     _TotalNumberOfClusterInByte = (uint64_t)_ClusterUnitSize * (uint64_t)_TotalNumberOfCluster;
 
-    //×¼±¸²éÑ¯´ÓÊ×¸öcluster¿ªÊ¼µÄbitmapÃèÊöĞÅÏ¢
+    //å‡†å¤‡æŸ¥è¯¢ä»é¦–ä¸ªclusterå¼€å§‹çš„bitmapæè¿°ä¿¡æ¯
     stStartLCN.StartingLcn.QuadPart = 0;
-    //ÏÂÃæ¼ÆËãÕû¸ö·ÖÇøµÄBitmapÓĞ¶à´ó¡£Èç¹û·ÖÇø±È½Ï´ó£¬Í¨³£clusterÊıÁ¿¾Í¶à£¬ĞèÒªµÄBitmap¿Õ¼ä¾Í¶àÒ»Ğ©¡£
-    //BitmapÊÇ°´Î»ÃèÊö£¬Òò´ËÒ»¸öByte¿ÉÒÔÃèÊö8¸öClusterµÄÊ¹ÓÃ×´Ì¬¡£°´_TotalNumberOfCluster/8ÔÙ+1¿ÉÒÔ¼ÆËã³öĞèÒªµÄ×Ö½ÚÊı£¬+1ÊÇ±£Ö¤×ã¹»£¬ÒòÎª³ıÒÔ8Èç¹ûÓĞÓàÊı£¨¼´×îºó²»×ã8¸öCluster£©¾ÍĞèÒªÒ»¸ö×Ö½ÚÀ´ÃèÊöËü¡£
+    //ä¸‹é¢è®¡ç®—æ•´ä¸ªåˆ†åŒºçš„Bitmapæœ‰å¤šå¤§ã€‚å¦‚æœåˆ†åŒºæ¯”è¾ƒå¤§ï¼Œé€šå¸¸clusteræ•°é‡å°±å¤šï¼Œéœ€è¦çš„Bitmapç©ºé—´å°±å¤šä¸€äº›ã€‚
+    //Bitmapæ˜¯æŒ‰ä½æè¿°ï¼Œå› æ­¤ä¸€ä¸ªByteå¯ä»¥æè¿°8ä¸ªClusterçš„ä½¿ç”¨çŠ¶æ€ã€‚æŒ‰_TotalNumberOfCluster/8å†+1å¯ä»¥è®¡ç®—å‡ºéœ€è¦çš„å­—èŠ‚æ•°ï¼Œ+1æ˜¯ä¿è¯è¶³å¤Ÿï¼Œå› ä¸ºé™¤ä»¥8å¦‚æœæœ‰ä½™æ•°ï¼ˆå³æœ€åä¸è¶³8ä¸ªClusterï¼‰å°±éœ€è¦ä¸€ä¸ªå­—èŠ‚æ¥æè¿°å®ƒã€‚
     dwBitMapSize = offsetof(VOLUME_BITMAP_BUFFER, Buffer) + _TotalNumberOfCluster / 8 + 1;
     _pVolBitMapBuf = malloc(dwBitMapSize);
     if (!_pVolBitMapBuf)
@@ -333,10 +348,10 @@ BOOL CVolumeReader::GetBitmap()
     return (bResult);
 }
 
-//°´clusterĞòºÅ²éÑ¯¸ÃclusterºóĞøÁ¬ĞøÏàÍ¬×´Ì¬µÄclusterµÄÊıÁ¿
+//æŒ‰clusteråºå·æŸ¥è¯¢è¯¥clusteråç»­è¿ç»­ç›¸åŒçŠ¶æ€çš„clusterçš„æ•°é‡
 int64_t CVolumeReader::GetContiguous(int64_t lcn, bool& stat)
 {
-    static BYTE BitShift[] = { 1, 2, 4, 8, 16, 32, 64, 128 }; //8¸öÎ»ÑÚÂë£¬·½±ã´ÓÒ»¸ö×Ö½ÚÈ¡³öÃ¿¸öÎ»
+    static BYTE BitShift[] = { 1, 2, 4, 8, 16, 32, 64, 128 }; //8ä¸ªä½æ©ç ï¼Œæ–¹ä¾¿ä»ä¸€ä¸ªå­—èŠ‚å–å‡ºæ¯ä¸ªä½
 
     VOLUME_BITMAP_BUFFER* bitMappings = (VOLUME_BITMAP_BUFFER*)_pVolBitMapBuf;
     int64_t i = lcn;
@@ -432,7 +447,7 @@ NTSTATUS WINAPI __NtFsControlFile(
     ULONG            OutputBufferLength
 );
 
-//°ÑÎÄ¼şÏà¹ØµÄclusterÔÚBitmapÖĞÖÃÎª0
+//æŠŠæ–‡ä»¶ç›¸å…³çš„clusteråœ¨Bitmapä¸­ç½®ä¸º0
 uint64_t UnmaskBitMap(LPCWSTR lpszVolName, LPCWSTR lpszFilename, BYTE*pVBB)
 {
     //TODO
@@ -526,7 +541,7 @@ uint64_t UnmaskBitMap(LPCWSTR lpszVolName, LPCWSTR lpszFilename, BYTE*pVBB)
             {
                 goto _END;
             }
-            //0x80000005 STATUS_BUFFER_OVERFLOWµÄÇé¿ö£¬½«¼ÌĞø²éÑ¯
+            //0x80000005 STATUS_BUFFER_OVERFLOWçš„æƒ…å†µï¼Œå°†ç»§ç»­æŸ¥è¯¢
         }
     }
 
@@ -544,7 +559,7 @@ _END:
 }
 
 
-//°ÑSystem Volume InformationÖĞµÄÒ»Ğ©ÎÄ¼şUnmaskBitMap
+//æŠŠSystem Volume Informationä¸­çš„ä¸€äº›æ–‡ä»¶UnmaskBitMap
 uint64_t UnmaskBitMapSVIFiles(LPCWSTR lpszVolName, BYTE* pVBB, LPCWSTR lpszNamePattern, const FILETIME *ignoreAfter)
 {
     //TODO
@@ -584,6 +599,8 @@ uint64_t CVolumeReader::UnmaskSomeFiles()
     uint64_t totalsz = 0;
     VOLUME_BITMAP_BUFFER* bitMappings = (VOLUME_BITMAP_BUFFER*)_pVolBitMapBuf;
     m_calcedSize = 0;
+    // File LCNs and the bitmap must come from the same volume view. In VSS
+    // mode this is the snapshot, never the live volume used for geometry.
     if (m_dwOptions & OptIgnorePagefile)
         totalsz += UnmaskBitMap(m_strVolName.c_str(), L"Pagefile.sys", bitMappings->Buffer);
     if (m_dwOptions & OptIgnoreHiberfil)

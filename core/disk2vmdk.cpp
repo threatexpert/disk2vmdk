@@ -16,6 +16,7 @@
 #include "human-readable.h"
 #include "langstr.h"
 #include "osutils.h"
+#include "ProgressEstimate.h"
 
 using json = nlohmann::ordered_json;
 
@@ -240,39 +241,95 @@ int main(int argc, char**argv)
     public:
         DWORD mTickBegin;
         DWORD mTick;
-        uint64_t position_prev;
+        uint64_t position_prev, data_copied_prev;
         uint64_t _position, _disksize;
-        Cprogress() {
+        double m_smoothedDataSpeed;
+        double m_smoothedScanSpeed;
+        CImageMaker& m_maker;
+
+        Cprogress(CImageMaker& maker) : m_maker(maker) {
+            ResetTiming();
+        }
+        void ResetTiming() {
             mTickBegin = mTick = GetTickCount();
-            position_prev = 0;
+            position_prev = data_copied_prev = 0;
             _position = _disksize = 0;
+            m_smoothedDataSpeed = 0.0;
+            m_smoothedScanSpeed = 0.0;
         }
         virtual void ImageMaker_OnStart()
         {
+            ResetTiming();
             fwprintf(stderr, LSTRW(RID_OnStart));
         }
 
         virtual void ImageMaker_OnCopied(uint64_t position, uint64_t disksize, uint64_t data_copied, uint64_t data_space_size) {
             char txt_cp[128];
-            char txt_inc[128];
             char txt_speed[128];
             char used[128];
             char lefttime[128];
-            DWORD t = GetTickCount() - mTick;
+            DWORD now = GetTickCount();
+            DWORD t = now - mTick;
             _position = position;
             _disksize = disksize;
             if (t >= 1000) {
-                mTick = GetTickCount();
+                mTick = now;
                 calculateSize1024(position, txt_cp, sizeof(txt_cp));
-                uint64_t inc = position - position_prev;
-                calculateSize1024(inc, txt_inc, sizeof(txt_inc));
-                double speed = (double)inc * 1000 / t;
-                uint64_t est_sec = (uint64_t)((disksize - position) / speed);
-                calculateSize1024((uint64_t)speed, txt_speed, sizeof(txt_speed));
+
+                uint64_t inc_pos = (position >= position_prev) ? (position - position_prev) : 0;
+                uint64_t inc_data = (data_copied >= data_copied_prev) ? (data_copied - data_copied_prev) : 0;
+                double inst_pos_speed = (double)inc_pos * 1000.0 / t;
+                double inst_data_speed = (double)inc_data * 1000.0 / t;
+
+                if (m_smoothedScanSpeed <= 0.0) {
+                    m_smoothedScanSpeed = inst_pos_speed;
+                } else {
+                    m_smoothedScanSpeed = 0.25 * inst_pos_speed + 0.75 * m_smoothedScanSpeed;
+                }
+
+                if (inc_data > 0) {
+                    if (m_smoothedDataSpeed <= 0.0) {
+                        m_smoothedDataSpeed = inst_data_speed;
+                    } else {
+                        m_smoothedDataSpeed = 0.25 * inst_data_speed + 0.75 * m_smoothedDataSpeed;
+                    }
+                } else {
+                    if (m_smoothedDataSpeed > 0.0) {
+                        m_smoothedDataSpeed = 0.95 * m_smoothedDataSpeed;
+                    }
+                }
+
+                DWORD total_elapsed_ms = mTick - mTickBegin;
+                if (total_elapsed_ms == 0) total_elapsed_ms = 1;
+                double total_elapsed_sec = (double)total_elapsed_ms / 1000.0;
+                double avg_data_speed = (double)data_copied / total_elapsed_sec;
+                double avg_pos_speed = (double)position / total_elapsed_sec;
+
+                double est_data_speed = (m_smoothedDataSpeed > 0.0)
+                    ? (0.7 * m_smoothedDataSpeed + 0.3 * avg_data_speed)
+                    : avg_data_speed;
+                double est_pos_speed = (m_smoothedScanSpeed > 0.0)
+                    ? (0.7 * m_smoothedScanSpeed + 0.3 * avg_pos_speed)
+                    : avg_pos_speed;
+
+                uint64_t est_sec = 0;
+                bool sparse_output = m_maker.GetWorkingMode() == CImageMaker::Mode_VD;
+                bool has_estimate = EstimateRemainingSeconds(sparse_output,
+                    position, disksize, data_copied, data_space_size,
+                    inc_data > 0 ? est_data_speed : 0.0, inc_pos > 0 ? est_pos_speed : 0.0, est_sec);
+
+                double display_speed = (sparse_output && inc_data > 0 && m_smoothedDataSpeed > 0.0)
+                    ? m_smoothedDataSpeed : m_smoothedScanSpeed;
+
+                calculateSize1024((uint64_t)display_speed, txt_speed, sizeof(txt_speed));
                 calcseconds((mTick-mTickBegin)/1000, used, sizeof(used));
-                calcseconds(est_sec, lefttime, sizeof(lefttime));
+                if (has_estimate)
+                    calcseconds(est_sec, lefttime, sizeof(lefttime));
+                else
+                    strcpy_s(lefttime, sizeof(lefttime), "--");
                 fprintf(stderr, "%I64d bytes (%s) copied, %s, EST. %s, %s/s      \r", position, txt_cp, used, lefttime, txt_speed);
                 position_prev = position;
+                data_copied_prev = data_copied;
             }
         }
         virtual void ImageMaker_OnEnd(int err_code) {
@@ -287,7 +344,7 @@ int main(int argc, char**argv)
                 fwprintf(stderr, LSTRW(RID_ConvertorThreadError), err_code);
         }
 
-    }progress;
+    }progress(maker);
 
     maker.setCallback(&progress);
     if (!maker.start()) {

@@ -11,6 +11,7 @@
 #include <algorithm>
 #include "CPartDlg.h"
 #include "CConnDlg.h"
+#include "../core/ProgressEstimate.h"
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -661,6 +662,8 @@ CMakerItem::CMakerItem()
 	_data_copied = 0;
 	_data_space_size = 0;
 	_percent = 0;
+	m_smoothedDataSpeed = 0.0;
+	m_smoothedScanSpeed = 0.0;
 }
 
 CMakerItem::~CMakerItem()
@@ -904,6 +907,9 @@ void CMakerItem::ImageMaker_OnStart()
 		position_prev = data_copied_prev = 0;
 		_position = _disksize = 0;
 		_percent = 0;
+		m_smoothedDataSpeed = 0.0;
+		m_smoothedScanSpeed = 0.0;
+		_data_copied = _data_space_size = 0;
 	
 		m_strProgress.Format(LSTRW(RID_GettingStarted));
 		m_pMainDlg->PostMessage(MYMSG_PROGRESS, m_iItem, MYMSG_PARAM_OnStart);
@@ -921,44 +927,119 @@ void CMakerItem::ImageMaker_OnStart()
 void CMakerItem::ImageMaker_OnCopied(uint64_t position, uint64_t disksize, uint64_t data_copied, uint64_t data_space_size)
 {
 	CSingleLock lock(&m_lc, TRUE);
-	//char txt_cp[128];
-	//char txt_inc[128];
 	char txt_speed[128];
 	char used[128];
 	char lefttime[128];
-	DWORD t = GetTickCount() - mTick;
+	DWORD now = GetTickCount();
+	DWORD t = now - mTick;
 	_position = position;
 	_disksize = disksize;
 	_data_copied = data_copied;
 	_data_space_size = data_space_size;
 	if (t >= 1000) {
-		mTick = GetTickCount();
+		mTick = now;
 
-		uint64_t inc;
-		double speed;
-		uint64_t est_sec;
+		uint64_t inc_pos = (position >= position_prev) ? (position - position_prev) : 0;
+		uint64_t inc_data = (data_copied >= data_copied_prev) ? (data_copied - data_copied_prev) : 0;
+		double inst_pos_speed = (double)inc_pos * 1000.0 / t;
+		double inst_data_speed = (double)inc_data * 1000.0 / t;
+
+		// 1. 平滑逻辑位置推进速度 (EMA，包含写入和空闲区跳过)
+		if (m_smoothedScanSpeed <= 0.0) {
+			m_smoothedScanSpeed = inst_pos_speed;
+		} else {
+			m_smoothedScanSpeed = 0.25 * inst_pos_speed + 0.75 * m_smoothedScanSpeed;
+		}
+
+		// 2. 平滑有效数据写入速度 (EMA)
+		if (inc_data > 0) {
+			if (m_smoothedDataSpeed <= 0.0) {
+				m_smoothedDataSpeed = inst_data_speed;
+			} else {
+				m_smoothedDataSpeed = 0.25 * inst_data_speed + 0.75 * m_smoothedDataSpeed;
+			}
+		} else {
+			// 当前采样周期没有写入有效数据（例如正在跳过未分配空间或排除分区）
+			// 保留平滑趋势；本周期无数据进展时不生成数据 ETA
+			if (m_smoothedDataSpeed > 0.0) {
+				m_smoothedDataSpeed = 0.95 * m_smoothedDataSpeed;
+			}
+		}
+
+		// 3. 计算全局累计平均速度
+		DWORD total_elapsed_ms = mTick - mTickBegin;
+		if (total_elapsed_ms == 0) total_elapsed_ms = 1;
+		double total_elapsed_sec = (double)total_elapsed_ms / 1000.0;
+		double avg_data_speed = (double)data_copied / total_elapsed_sec;
+		double avg_pos_speed = (double)position / total_elapsed_sec;
+
+		// 综合预估速度（70% EMA + 30% 全局平均）
+		double est_data_speed = (m_smoothedDataSpeed > 0.0)
+			? (0.7 * m_smoothedDataSpeed + 0.3 * avg_data_speed)
+			: avg_data_speed;
+		double est_pos_speed = (m_smoothedScanSpeed > 0.0)
+			? (0.7 * m_smoothedScanSpeed + 0.3 * avg_pos_speed)
+			: avg_pos_speed;
+
+		uint64_t rem_data = (data_space_size > data_copied) ? (data_space_size - data_copied) : 0;
+		uint64_t est_sec = 0;
+		bool has_estimate = EstimateRemainingSeconds(m_maker.GetWorkingMode() == CImageMaker::Mode_VD,
+			position, disksize, data_copied, data_space_size,
+			inc_data > 0 ? est_data_speed : 0.0, inc_pos > 0 ? est_pos_speed : 0.0, est_sec);
+		double display_speed = 0.0;
 
 		switch (m_maker.GetWorkingMode()) {
 		case CImageMaker::Mode_VD:
-			_percent = (int)(data_copied * 100 / data_space_size);
-			if (_percent == 100 && position != disksize)
-				_percent -= 1;
-			inc = data_copied - data_copied_prev;
-			speed = (double)inc * 1000 / t;
-			est_sec = (uint64_t)((data_space_size - data_copied) / speed);
+		{
+			// 综合进度计算（以有效数据进度为主 95%，逻辑位置进度为辅 4%）
+			if (data_space_size > 0 && disksize > 0) {
+				if (rem_data > 0) {
+					double p_data = (double)data_copied / (double)data_space_size;
+					double p_pos = (double)position / (double)disksize;
+					_percent = (int)(p_data * 95.0 + p_pos * 4.0);
+				} else {
+					// 有效数据已经全部写入，后半段扫描空闲空间阶段
+					double p_pos = (double)position / (double)disksize;
+					_percent = 95 + (int)(p_pos * 4.0);
+				}
+			} else if (disksize > 0) {
+				_percent = (int)(position * 99 / disksize);
+			} else {
+				_percent = 0;
+			}
+			if (_percent > 99) _percent = 99;
+			if (_percent < 0) _percent = 0;
+
+			// 界面显示速度：写数据时显示写入速度，跳空时显示逻辑推进速率
+			if (inc_data > 0) {
+				display_speed = (m_smoothedDataSpeed > 0.0) ? m_smoothedDataSpeed : inst_data_speed;
+			} else {
+				display_speed = (m_smoothedScanSpeed > 0.0) ? m_smoothedScanSpeed : inst_pos_speed;
+			}
 			break;
+		}
 		case CImageMaker::Mode_DD:
 		default:
-			_percent = (int)(position * 100 / disksize);
-			inc = _position - position_prev;
-			speed = (double)inc * 1000 / t;
-			est_sec = (uint64_t)((disksize - position) / speed);
+		{
+			if (disksize > 0) {
+				_percent = (int)(position * 99 / disksize);
+			} else {
+				_percent = 0;
+			}
+			if (_percent > 99) _percent = 99;
+			if (_percent < 0) _percent = 0;
+
+			display_speed = (m_smoothedScanSpeed > 0.0) ? m_smoothedScanSpeed : inst_pos_speed;
 			break;
+		}
 		}
 
 		calcseconds((mTick - mTickBegin) / 1000, used, sizeof(used));
-		calculateSize1024((uint64_t)speed, txt_speed, sizeof(txt_speed));
-		calcseconds(est_sec, lefttime, sizeof(lefttime));
+		calculateSize1024((uint64_t)display_speed, txt_speed, sizeof(txt_speed));
+		if (has_estimate)
+			calcseconds(est_sec, lefttime, sizeof(lefttime));
+		else
+			strcpy_s(lefttime, sizeof(lefttime), "--");
 
 		m_strProgress.Format(L"%d%%, %S", _percent, used);
 		m_strStatic.Format(LSTRW(RID_Speed_Remaining), txt_speed, lefttime);
@@ -984,7 +1065,8 @@ void CMakerItem::ImageMaker_OnEnd(int err_code)
 	mTick = GetTickCount();
 	calcseconds((mTick - mTickBegin) / 1000, used, sizeof(used));
 
-	if (_disksize != 0 &&_position == _disksize) {
+	if (_disksize != 0 && _position == _disksize && err_code == 0) {
+		_percent = 100;
 		m_strProgress.Format(LSTRW(RID_ImageMaker_End_OK), used);
 		m_strStatic = _T("");
 	}

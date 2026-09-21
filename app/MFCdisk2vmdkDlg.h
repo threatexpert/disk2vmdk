@@ -24,6 +24,8 @@ public:
 	DWORD mTick;
 	uint64_t position_prev, data_copied_prev;
 	uint64_t _position, _disksize, _data_copied, _data_space_size;
+	double m_smoothedDataSpeed;
+	double m_smoothedScanSpeed;
 
 	CString m_strProgress;
 	CString m_strStatic;
